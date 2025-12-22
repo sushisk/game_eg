@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Phaser Game</title>
+</head>
+<body>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.90.0/phaser.min.js"></script>
+   <script>
+       // Example Phaser game setup
+       const config = {
+           type: Phaser.AUTO,
+           width: 800,
+           height: 600,
+           scene: {
+               preload: preload,
+               create: create,
+               update: update
+           }
+       };
+       var game = new Phaser.Game(config);
+       function preload(){
+        this.load.spritesheet('dude','assets/hakache.png',{flameWidth: 13, frameHeight: 16});
+       }
+       function create(){}
+       function update(){}
+   </script>
+</body>
+</html>
