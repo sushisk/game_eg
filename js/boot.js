@@ -1,5 +1,5 @@
 import mapSelect from "./mapSelect.js";
-import MainGame from "./mainGame.js";
+import MainGame from "./MainGame.js";
 
 const config = {
     type: Phaser.AUTO,
