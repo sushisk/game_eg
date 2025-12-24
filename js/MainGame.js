@@ -34,6 +34,7 @@ export default class MainGame extends Phaser.Scene {
             109: "win_text",
             110: "defeat_text",
             111: "hata_text",
+            999: "floor"
         };
 
         this.typeToAssets = {
@@ -107,24 +108,9 @@ export default class MainGame extends Phaser.Scene {
         });
     }
     create() {
-        console.log(this.logicGrid);
+        this.cameras.main.setViewport((600 - this.gridWidth*20)/2,(450 - this.gridHeight*20)/2,this.gridWidth*20, this.gridHeight*20);
         this.createObjects();
         this.updateRules();
-
-        this.players = [];
-
-        for (let i = 0; i < this.gridHeight; i++) {
-            for (let j = 0; j < this.gridWidth; j++) {
-                const objs = this.objGrid[i][j];
-                if (!objs) continue;
-
-                for (let obj of objs) {
-                    if (this.rules[obj.name].includes("you")) {
-                        this.players.push(obj);
-                    }
-                }
-            }
-        }
 
         this.input.keyboard.on("keydown", (event) => this.handleInput(event));
     }
@@ -176,6 +162,8 @@ export default class MainGame extends Phaser.Scene {
 
         this.checkStates();
         this.vanishObj();
+        if(this.players.length === 0) this.lose();
+
     }
         trymove = (gameObj, dr, dc) => {
         const c = Math.floor(gameObj.x / 20);
@@ -219,7 +207,7 @@ export default class MainGame extends Phaser.Scene {
         for (const key in this.rules) {
             this.rules[key] = [];
         }
-
+        this.players = [];
         this.convert = [];
         this.conflictGrid = Array.from({ length: this.gridHeight }, () =>
             Array(this.gridWidth).fill(0)
@@ -341,6 +329,18 @@ export default class MainGame extends Phaser.Scene {
         // テキストは常に push
         for (const key in this.rules) {
             if (key.includes("_text")) this.rules[key].push("push");
+        }
+        //player追加
+        for (let i = 0; i < this.gridHeight; i++) {
+            for (let j = 0; j < this.gridWidth; j++) {
+                const objs = this.objGrid[i][j];
+                if (!objs) continue;
+                for (let obj of objs) {
+                    if (this.rules[obj.name].includes("you")) {
+                        this.players.push(obj);
+                    }
+                }
+            }
         }
     };
 
@@ -482,7 +482,6 @@ export default class MainGame extends Phaser.Scene {
 
                 const name = this.logicGrid[i][j][0];
                 if (name === "blank") continue;
-
                 const obj = new this.gameObjectClass(this, j * 20, i * 20, name);
                 this.objGrid[i][j].push(obj);
             }
@@ -554,6 +553,9 @@ export default class MainGame extends Phaser.Scene {
     win = () => {
         console.log("you win");
     };
+    lose = () => {
+        console.log("you lose")
+    }
 
 
     vanishObj = () => {
