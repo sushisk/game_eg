@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Phaser Game</title>
+</head>
+<body>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.90.0/phaser.min.js"></script>
+   <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 600,
+            height: 400,
+            pixelArt: true,
+            backgroundColor: '#1a1a1a',
+            scale: { 
+                zoom: 2
+            },
+            scene: {
+               preload: preload,
+               create: create,
+               update: update
+           }
+        };
+        var game = new Phaser.Game(config);
+        function preload(){
+            this.load.spritesheet('hakache','assets/hakache.png',{frameWidth: 13, frameHeight: 16});
+            this.load.spritesheet('tiles','assets/tile_eg.png',{frameWidth: 20, frameHeight: 20});
+            this.load.tilemapCSV('map', 'assets/tilemaps/csv/grid.csv');
+        }
+        function create(){
+            const map = this.make.tilemap({key: 'map', tileWidth: 20, tileHeight: 20});
+            const tileToType = {
+                1: "baba",
+                2: "rock",
+                3: "wall",
+                4: "flag",
+                10: "text_baba",
+                11: "text_rock",
+                12: "text_is",
+                13: "text_push",
+            };
+            class gameObj{
+                constructor(attribute,x,y){
+                    this.attribute = attribute;
+                    this.x = x;
+                    this.y = y;
+                }
+            }
+            
+            const tileset = map.addTilesetImage('tiles');
+            const layer = map.createLayer(0,tileset,0,0);
+
+            const logicGrid = [];
+            for (let i = 0; i < 5; i++) { logicGrid[i] = new Array(5).fill(0); };
+            for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++){
+                logicGrid[i][j] = layer.getTileAtWorldXY(i * 20, j * 20, true);
+            }
+            
+
+
+            const player = this.add.sprite(9,10,'hakache');
+            this.anims.create({
+                key : 'hakache',
+                frames: this.anims.generateFrameNumbers('hakache',{start:0, end:1}),
+                frameRate : 4,
+                repeat: -1
+            })
+            player.play('hakache');
+            this.input.keyboard.on('keydown-A', event =>
+                {
+                    const tile = layer.getTileAtWorldXY(player.x - 20, player.y, true);
+                    if (tile.index === 2){}
+                    else{player.x -= 20;}
+                });
+            this.input.keyboard.on('keydown-S', event =>
+                {
+                    const tile = layer.getTileAtWorldXY(player.x, player.y+20, true);
+                    if (tile.index === 2){}
+                    else{player.y += 20;}
+                });
+            this.input.keyboard.on('keydown-D', event =>
+                {
+                    const tile = layer.getTileAtWorldXY(player.x+20, player.y, true);
+                    if (tile.index === 2){}
+                    else{player.x += 20;}
+                });
+            this.input.keyboard.on('keydown-W', event =>
+                {
+                    const tile = layer.getTileAtWorldXY(player.x, player.y-20, true);
+                    if (tile.index === 2){}
+                    else{player.y -= 20;}
+                });
+
+        }
+        function update(){}
+        function move(){
+
+        }
+   </script>
+</body>
+</html>
