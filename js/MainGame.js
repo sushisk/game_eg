@@ -90,7 +90,7 @@ export default class MainGame extends Phaser.Scene {
     };
 
     preload() {
-        this.load.spritesheet("tiles", "assets/tiles.png", {
+        this.load.spritesheet("tiles", "./assets/tiles.png", {
             frameWidth: 20,
             frameHeight: 20,
         });

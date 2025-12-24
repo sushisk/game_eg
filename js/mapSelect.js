@@ -2,17 +2,17 @@ export default class mapSelect extends Phaser.Scene {
     constructor(){
         super("mapSelect");
         this.initData = [
-            [10,10,"assets/tilemaps/grid.csv"]
+            [10,10,"./assets/tilemaps/grid.csv"]
         ]
         this.ptr;
         this.coords = [];
     }
     preload(){
-        this.load.spritesheet("mapButton", "assets/mapButton.png", {
+        this.load.spritesheet("mapButton", "./assets/mapButton.png", {
             frameWidth: 40,
             frameHeight: 40,
         });
-        this.load.image("selector", "assets/selector.png")
+        this.load.image("selector", "./assets/selector.png")
     }
     create(){
         const grid = [];
