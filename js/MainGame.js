@@ -107,6 +107,7 @@ export default class MainGame extends Phaser.Scene {
         });
     }
     create() {
+        console.log(this.logicGrid);
         this.createObjects();
         this.updateRules();
 
