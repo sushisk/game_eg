@@ -2,6 +2,7 @@
 
 import mapSelect from "./mapSelect.js";
 import MainGame from "./MainGame.js";
+import UIScene from "./UIScene.js";
 
 const config = {
     type: Phaser.AUTO,
@@ -9,7 +10,7 @@ const config = {
     height: 450,
     backgroundColor: '#222222',
     parent: 'phaser-example',
-    scene: [ mapSelect, MainGame ],
+    scene: [ mapSelect, MainGame, UIScene],
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
 };
 

@@ -24,6 +24,7 @@ export default class mapSelect extends Phaser.Scene {
         }
         this.coords = [0,0];
         this.ptr = this.add.image(this.coords[0]+5, this.coords[1]+5, "selector").setOrigin(0,0);
+        this.scene.launch('UIScene',{"sceneName" : "mapSelect"});
         this.input.keyboard.on("keydown", (event) => this.handleInput(event));
     }
     handleInput(event){
@@ -39,7 +40,6 @@ export default class mapSelect extends Phaser.Scene {
             case "KeyD": case "ArrowRight":
                 dc = 1; break;
             case "Enter":
-                console.log(this.initData)
                 var [h,w,url] = this.initData[this.coords[0] + this.coords[1]*3];
                 startGame(h,w,url);
             default:

@@ -1,9 +1,9 @@
-0,convert実装
-1,undo実装
-2,restart実装
-3,button実装
-4,win,lose実装
-5,ステージ追加(6ステージまで)
+0,convert実装 done
+1,undo実装 done
+2,restart実装 done? restart後に一回入力を受け付けない <= 解決済み
+3,button実装 done
+4,win,lose実装 done
+5,ステージ追加(6ステージまで) 
 6,音入れ
 7,タイトル実装
 8,エフェクト実装

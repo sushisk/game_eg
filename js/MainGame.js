@@ -11,6 +11,7 @@ export default class MainGame extends Phaser.Scene {
         this.logicGrid = [];
         this.objGrid = [];
         this.conflictGrid = null;
+        this.undos = [];
 
         this.gridHeight;
         this.gridWidth;
@@ -61,15 +62,25 @@ export default class MainGame extends Phaser.Scene {
         this.doushi = ["push", "stop", "win", "you", "defeat","weak","melt","hot"];
 
         this.canInput = true;
+        this.depth = 1;
         this.players = [];
     }
     init(data){
         this.gridHeight = data.gridHeight;
         this.gridWidth = data.gridWidth;
         this.mapfileURL = data.mapfileURL;
+        this.rules = {};
+        this.convert = [];
+        this.vanish = [];
+        this.moveQuery = [];
+        this.logicGrid = [];
+        this.objGrid = [];
+        this.conflictGrid = null;
+        this.undos = [];
+        this.canInput = true;
+        this.depth = 1;
+        this.players = [];
     }
-
-    // ===== CSV 読み込み =====
     loadGrid = async () => {
         try {
             const response = await fetch(this.mapfileURL);
@@ -89,83 +100,95 @@ export default class MainGame extends Phaser.Scene {
             console.log(err);
         }
     };
-
     preload() {
         this.load.spritesheet("tiles", "./assets/tiles.png", {
             frameWidth: 20,
             frameHeight: 20,
         });
-
-        return this.loadGrid().then(() => {
+        this.load.image("congrats", "./assets/congrats.png");
+        this.load.image("lose", "./assets/lose.png");
+    }
+    async create() {
+        await this.loadGrid();
             // rules 初期化
-            for (let i = 0; i < this.gridHeight; i++) {
-                for (let j = 0; j < this.gridWidth; j++) {
-                    const name = this.logicGrid[i][j][0];
-                    if (!this.rules[name]) this.rules[name] = [];
-                    if (name.endsWith("_text")) this.rules[name + "_active"] = [];
-                }
+        for (let i = 0; i < this.gridHeight; i++) {
+            for (let j = 0; j < this.gridWidth; j++) {
+                const name = this.logicGrid[i][j][0];
+                if (!this.rules[name]) this.rules[name] = [];
+                if (name.endsWith("_text")) this.rules[name + "_active"] = [];
             }
+        }
+        this.cameras.main.setViewport((600 - this.gridWidth*20)/2,(450 - this.gridHeight*20)/2,this.gridWidth*20, this.gridHeight*20);
+        this.createObjs();
+        this.updateRules();
+        this.updatePlayer();
+        this.addUndos();
+        this.scene.launch('UIScene',{"sceneName" : "MainGame"});
+        this.input.keyboard.on("keydown", (event) => this.handleInput(event));
+        this.events.on("shutdown", () => {
+            this.input.keyboard.off("keydown");
         });
     }
-    create() {
-        this.cameras.main.setViewport((600 - this.gridWidth*20)/2,(450 - this.gridHeight*20)/2,this.gridWidth*20, this.gridHeight*20);
-        this.createObjects();
-        this.updateRules();
-
-        this.input.keyboard.on("keydown", (event) => this.handleInput(event));
-    }
-
     handleInput(event) {
         if (!this.canInput) return;
 
+        if(this.restartConfirm){
+            this.restart(event);
+            return;
+        }
+
         let dr = 0, dc = 0;
+        let mode = "invalid";
         switch (event.code) {
-            case "KeyW":
-            case "ArrowUp":
-                dr = -1;
-                break;
-            case "KeyS":
-            case "ArrowDown":
-                dr = 1;
-                break;
-            case "KeyA":
-            case "ArrowLeft":
-                dc = -1;
-                break;
-            case "KeyD":
-            case "ArrowRight":
-                dc = 1;
-                break;
+            case "KeyW": case "ArrowUp":
+                dr = -1; mode = "move"; break;
+            case "KeyS": case "ArrowDown":
+                dr = 1; mode = "move"; break;
+            case "KeyA": case "ArrowLeft":
+                dc = -1; mode = "move"; break;
+            case "KeyD": case "ArrowRight":
+                dc = 1; mode = "move"; break;
+            case "KeyU": case "KeyX":
+                mode = "undo"; break;
+            case "KeyR":
+                this.restart(event); return;
             default:
                 return;
         }
-
+        if(this.restartText) this.restartText.destroy();
         this.canInput = false;
         this.time.delayedCall(100, () => (this.canInput = true));
-
-        for (let p of this.players) {
-            this.trymove(p, dr, dc);
+        if(mode === "move"){
+            this.moveQuery = [];
+            this.vanish = [];
+            this.convert = [];
+            for (let p of this.players) {
+                this.trymove(p, dr, dc);
+            }
+            if(this.moveQuery.length === 0) return;
+            let didTextMove = false;
+            for (let q of this.moveQuery) {
+                if (q[0].name.includes("_text")) didTextMove = true;
+                this.moveObj(q, this.depth);
+            }
+            this.depth += 1;
+            if (didTextMove) {
+                this.updateRules();
+                this.checkRules();
+            }
+            this.convertObj();
+            this.vanishObj();
+            this.updatePlayer();
+            this.checkStates();
+            if(this.players.length === 0) this.lose();
+            if(this.winFlag) this.win();
+            this.addUndos();
         }
-
-        let depth = 1;
-        let didTextMove = false;
-
-        for (let q of this.moveQuery) {
-            if (q[0].name.includes("_text")) didTextMove = true;
-            this.moveObj(q, depth);
+        if(mode === "undo"){
+            this.doUndos();
         }
-
-        if (didTextMove) {
-            this.updateRules();
-            this.checkRules();
-        }
-
-        this.checkStates();
-        this.vanishObj();
-        if(this.players.length === 0) this.lose();
-
     }
-        trymove = (gameObj, dr, dc) => {
+    trymove = (gameObj, dr, dc) => {
         const c = Math.floor(gameObj.x / 20);
         const r = Math.floor(gameObj.y / 20);
         const nc = c + dc;
@@ -201,13 +224,10 @@ export default class MainGame extends Phaser.Scene {
         this.moveQuery.push([gameObj, nc * 20, nr * 20]);
         return true;
     };
-
-
     updateRules = () => {
         for (const key in this.rules) {
             this.rules[key] = [];
         }
-        this.players = [];
         this.convert = [];
         this.conflictGrid = Array.from({ length: this.gridHeight }, () =>
             Array(this.gridWidth).fill(0)
@@ -306,7 +326,7 @@ export default class MainGame extends Phaser.Scene {
                 }
             }
         }
-                // ===== 不成立文のマーク =====
+        // ===== 不成立文のマーク =====
         sentences.forEach((s, idx) => {
             if (invalidSentences.has(idx)) {
                 s.coords.forEach(pos => {
@@ -330,21 +350,7 @@ export default class MainGame extends Phaser.Scene {
         for (const key in this.rules) {
             if (key.includes("_text")) this.rules[key].push("push");
         }
-        //player追加
-        for (let i = 0; i < this.gridHeight; i++) {
-            for (let j = 0; j < this.gridWidth; j++) {
-                const objs = this.objGrid[i][j];
-                if (!objs) continue;
-                for (let obj of objs) {
-                    if (this.rules[obj.name].includes("you")) {
-                        this.players.push(obj);
-                    }
-                }
-            }
-        }
     };
-
-
     findShugo = (words, startR, startC, isVertical = false) => {
         let i = words.length - 1;
         let res = [];
@@ -389,8 +395,6 @@ export default class MainGame extends Phaser.Scene {
 
         return { res, coords };
     };
-
-
     findJutsugo = (words, startR, startC, isVertical = false) => {
         let i = 0;
         let res = [];
@@ -430,8 +434,6 @@ export default class MainGame extends Phaser.Scene {
 
         return { res, coords };
     };
-
-
     applySentenceToRules = (sentence) => {
         const { shugo, jutsugo } = sentence;
 
@@ -457,8 +459,6 @@ export default class MainGame extends Phaser.Scene {
             }
         }
     };
-
-
     parse = (words) => {
         for (let i = 0; i < words.length; i++) {
             let w = words[i][0];
@@ -470,24 +470,34 @@ export default class MainGame extends Phaser.Scene {
             words[i] = w;
         }
     };
-
-    createObjects = () => {
+    createObjs = () => {
         this.objGrid = new Array(this.gridHeight);
-
         for (let i = 0; i < this.gridHeight; i++) {
             this.objGrid[i] = new Array(this.gridWidth);
-
             for (let j = 0; j < this.gridWidth; j++) {
                 this.objGrid[i][j] = [];
-
-                const name = this.logicGrid[i][j][0];
-                if (name === "blank") continue;
-                const obj = new this.gameObjectClass(this, j * 20, i * 20, name);
-                this.objGrid[i][j].push(obj);
+                const names = this.logicGrid[i][j];
+                if (names[0] === "blank") continue;
+                for(let name of names){
+                    const obj = new this.gameObjectClass(this, j * 20, i * 20, name);
+                    this.objGrid[i][j].push(obj);
+                }
             }
         }
     };
-
+    clearObjGrid = () => {
+        for(let i = 0; i < this.gridHeight; i++){
+            for(let j = 0; j < this.gridWidth; j++){
+                var objs = this.objGrid[i][j];
+                if(!objs) continue;
+                for(let obj of objs){
+                    obj.vanish();
+                }
+                this.objGrid[i][j] = [];
+            }
+        }
+        
+    }
     checkRules = () => {
         for (let key in this.rules) {
             if (this.rules[key].includes("you") && this.rules[key].includes("defeat")) {
@@ -505,12 +515,11 @@ export default class MainGame extends Phaser.Scene {
                 }
             }
             else if (this.rules[key].includes("you") && this.rules[key].includes("win")) {
-                this.win();
+                this.winFlag = true;
                 return;
             }
         }
     };
-
     checkStates = () => {
         for (let i = 0; i < this.gridHeight; i++) {
             for (let j = 0; j < this.gridWidth; j++) {
@@ -541,7 +550,7 @@ export default class MainGame extends Phaser.Scene {
                             continue;
                         }
                         else if (state.includes("win")) {
-                            this.win();
+                            this.winFlag = true;
                             return;
                         }
                     }
@@ -549,15 +558,66 @@ export default class MainGame extends Phaser.Scene {
             }
         }
     };
-
+    convertObj = () => {
+        if(this.convert.length === 0) return;
+        for(let i = 0; i < this.convert.length; i++){
+            const f = this.convert[i][0];
+            const t = this.convert[i][1];
+            for(let j = 0; j < this.gridHeight; j++){
+                for(let k = 0; k < this.gridWidth; k++){
+                    var names = this.logicGrid[j][k];
+                    var flag = false;
+                    if(!names) continue;
+                    for(let l = 0; l < names.length; l++){
+                        if(f === names[l]){this.logicGrid[j][k][l] = t; flag = true;}
+                    }
+                    if(!flag) continue;
+                    var objs = this.objGrid[j][k];
+                    if(!objs) continue;
+                    for(let obj of objs){
+                        if(f === obj.name)obj.convert(t);
+                    }
+                }
+            }
+        }
+        this.convert.length = 0;
+    }
+    updatePlayer = () => {
+        this.players = [];
+        // player追加
+        for (let i = 0; i < this.gridHeight; i++) {
+            for (let j = 0; j < this.gridWidth; j++) {
+                const objs = this.objGrid[i][j];
+                if (!objs) continue;
+                for (let obj of objs) {
+                    if (this.rules[obj.name].includes("you")) {
+                        this.players.push(obj);
+                    }
+                }
+            }
+        }
+    };
     win = () => {
-        console.log("you win");
+        this.winFlag = false;
+        const winText = this.add.image(50,100,"congrats").setOrigin(0,0).setDepth(9999).setAlpha(0);
+        this.tweens.add({
+            targets: winText,
+            alpha: 1,
+            scale: 1,
+            duration: 1500,
+            ease: 'Quad.easeOut'
+        })
+        this.time.delayedCall(4000, () => {
+            this.scene.start("mapSelect");
+        });
     };
     lose = () => {
-        console.log("you lose")
-    }
-
-
+        this.winFlag = false;
+        this.loseText = this.add.image(90,0,"lose").setOrigin(0,0).setDepth(9999).setVisible(false);
+        this.time.delayedCall(2000, () => {
+            if(this.loseText) this.loseText.setVisible(true);
+        });
+    };
     vanishObj = () => {
         for (let obj of this.vanish) {
             const r = Math.floor(obj.y / 20);
@@ -575,8 +635,6 @@ export default class MainGame extends Phaser.Scene {
 
         this.vanish = [];
     };
-
-
     moveObj = (query, depth) => {
         const obj = query[0];
         const c = Math.floor(obj.x / 20);
@@ -600,6 +658,50 @@ export default class MainGame extends Phaser.Scene {
 
         obj.moveTo(query[1], query[2], depth);
     };
+    addUndos = () => {
+        if(this.undos.length > 100) this.undos.shift();
+        const cl = structuredClone(this.logicGrid);
+        const cr = structuredClone(this.rules);
+        this.undos.push([cl, cr]);
+    }
+    doUndos = () => {
+        if(this.undos.length <= 1) return;
+        if(this.loseText) this.loseText.destroy();
+        this.undos.pop();
+        const [pl, pr] = this.undos[this.undos.length - 1];
+        this.logicGrid = structuredClone(pl);
+        this.rules = structuredClone(pr);
+        console.log(this.logicGrid);
+        this.clearObjGrid();
+        this.createObjs();
+        this.updatePlayer();
+    }
+    restart(event) {
+        if(!this.restartConfirm){
+            this.restartConfirm = true;
+            this.restartText = this.add.text(120, 100,
+                "restart?\npress R again",
+                { fontFamily: "Arial", fontSize: "24px", color: "white", align: "center" }
+            ).setOrigin(0, 0).setDepth(1000);
+            return;
+        }
+        else{
+            if(event.code == "KeyR"){
+                console.log("call restart");
+                this.restartConfirm = false;
+                if(this.loseText) this.loseText.destroy();
+                this.scene.restart({
+                        gridHeight: this.gridHeight,
+                        gridWidth: this.gridWidth,
+                        mapfileURL: this.mapfileURL
+                });
+            }
+            else{
+                this.restartConfirm = false;
+                this.restartText.destroy();
+            }
+        }
+    }
     // ===== GameObject クラスを内部クラスとして保持 =====
     gameObjectClass = class {
         constructor(scene, x, y, name) {
@@ -608,7 +710,7 @@ export default class MainGame extends Phaser.Scene {
             this.y = y;
             this.name = name;
 
-            const frame = scene.typeToAssets[name];
+            var frame = scene.typeToAssets[name];
             this.sprite = scene.add.sprite(x, y, "tiles").setOrigin(0, 0);
 
             scene.anims.create({
@@ -631,12 +733,26 @@ export default class MainGame extends Phaser.Scene {
             this.sprite.setDepth(depth);
         }
 
-        vanish() {
+        vanish(){
             this.sprite.destroy();
         }
-    };
-    update(){
-    };
+        convert(name){
+            this.name = name;
+            var frame = this.scene.typeToAssets[name];
+            this.sprite.destroy();
+            this.sprite = this.scene.add.sprite(this.x, this.y, "tiles").setOrigin(0, 0);
+            this.scene.anims.create({
+                key: name,
+                frames: this.scene.anims.generateFrameNumbers("tiles", {
+                    start: frame[0],
+                    end: frame[1]
+                }),
+                frameRate: 2.5,
+                repeat: -1
+            });
+            this.sprite.play(name);
+        }
+    }
 }
 
 
